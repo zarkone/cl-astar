@@ -44,14 +44,15 @@ if there were an empty string between them."
            (select-v i j)
            (char-to-vertex-hander ch i j)))
         (incf i)))
-    (setf *x-len* j)
-    (setf *y-len* (- i 1)))
+    (setf *x-len* (+ j 1))
+    (setf *y-len* i))
   *graph*)
 
 (defun print-graph nil 
-  (loop for y upto *y-len* do
-       (loop for x upto *x-len* do
-            (format t "~a " (get-symbol (select-v y x))))
+  (dotimes (y *y-len*)
+       (dotimes (x *x-len*)
+            (format t "~a " 
+                    (get-symbol (select-v y x))))
        (format t "~%")))
       
 (defmacro get-param (v key) 
@@ -162,7 +163,6 @@ if there were an empty string between them."
     (cond 
       ((equal n nil) nil)
       ((not (equal n target))
-
        (cond 
          ((or 
            (in-list-p n *closed-list*) 
@@ -244,7 +244,7 @@ if there were an empty string between them."
     (get-x (car neighbours))
     (get-y (car neighbours))))
   (if (not (eq neighbours nil)) (print-neighbours (cdr neighbours))))
-(print (get-neighbours (select-v 3 4)))
+;; (print (get-neighbours (select-v 3 4)))
 
 ;; (print (select-v 0 0))
 ;; (print (car (cdr *graph*)))
@@ -254,4 +254,7 @@ if there were an empty string between them."
 ;; (car *graph*)
 
 
+;; (defmacro --foo* ((bar baz)) 
+;;   `(print ,baz))
+;; (--foo* (1 2))
 
