@@ -1,5 +1,5 @@
 (defvar *test-name* nil)
-(defvar *colorify* t)
+(defparameter *colorify* t)
 (defmacro with-gensym ((&rest names) &body body)
   `(let ,(loop for n in names collect `(,n (gensym)))
      ,@body))
@@ -23,8 +23,6 @@
                  (format nil "~:[FAIL~;pass~] ... ~a, ~a" 
              r *test-name* form))
     r))
-
-
 
 (defmacro check (&body forms)
   `(combine
@@ -57,6 +55,6 @@
     (test--)
     (test-+)))
 
-
+(setf *colorify* t)
 (time(test-ariphmetic))
 

@@ -1,7 +1,29 @@
+(defpackage :graphs (:use "CL" "SB-THREAD" "SB-EXT"))
+(in-package :graphs)
+
 (defparameter *graph* (make-hash-table))
 
 (defparameter *x-len* 0)
 (defparameter *y-len* 0)
+(defparameter *barrier* 0)
+
+(defun print-neighbours (neighbours)
+  (print 
+   (list
+    (get-x (car neighbours))
+    (get-y (car neighbours))))
+  (if (not (eq neighbours nil)) (print-neighbours (cdr neighbours))))
+
+(defmacro for (var start stop &body body)
+  (let ((gstop (gensym)))
+    `(do ((,var ,start (1+ ,var))
+          (,gstop ,stop))
+         ((> ,var ,gstop))
+       ,@body)))
+(defmacro while (test &rest body)
+  `(do ()
+       ((not ,test))
+     ,@body))
 
 (defun hash-keys (hash-table)
   (loop for key being the hash-keys of hash-table collect key))
@@ -48,12 +70,6 @@ if there were an empty string between them."
     (setf *y-len* i))
   *graph*)
 
-(defun print-graph nil 
-  (dotimes (y *y-len*)
-       (dotimes (x *x-len*)
-            (format t "~a " 
-                    (get-symbol (select-v y x))))
-       (format t "~%")))
       
 (defmacro get-param (v key) 
   `(getf ,v ,key))
@@ -74,6 +90,14 @@ if there were an empty string between them."
   `(get-param ,v :g))
 (defmacro get-f (v) 
   `(get-param ,v :f))
+
+(defun print-graph nil 
+  (dotimes (y *y-len*)
+       (dotimes (x *x-len*)
+            (format t "~a " 
+                    (get-symbol (select-v y x))))
+       (format t "~%")))
+
 
 (defun count-h (vertex target)
   (setf
@@ -136,8 +160,6 @@ if there were an empty string between them."
 (defun min-f-reduce-handler (x y)
   (min-reduce-handler x y :f))
 
-;; (reduce #'min-f-reduce-handler '((:f 2) (:f 1) (:f 11) (:f -2)))
-
 (defun in-list-p (x lst) 
   (cond ((equal lst nil) nil)
         ((equal (car lst) x) T)
@@ -158,49 +180,55 @@ if there were an empty string between them."
 
 (defparameter *current* nil)
 
-(defun search-in-neighbours (neighbours target)
-  (let ((n (car neighbours)))
-    (cond 
-      ((equal n nil) nil)
-      ((not (equal n target))
-       (cond 
-         ((or 
-           (in-list-p n *closed-list*) 
-           (not (get-is-passable n)))
-          nil)
-         ((not 
-           (in-list-p n *open-list*))
-          (setf (get-parent n) *current*)
-          (count-all n target)
-          (push n *open-list*))
-         (t (if 
-             (> (get-g *current*) 
-                (get-g n)) 
-             (progn 
-               (count-all n target)
-               (setf (get-parent n) *current*)))))
-       (search-in-neighbours 
-        (cdr neighbours) target))
-      (t
-       (setf 
-        (get-parent n) 
-        *current*)
-       t))))
+(defun search-in-neighbours (n target)
+  (cond 
+    ((equal n nil) nil)
+    ((not (equal n target))
+     (cond 
+       ((or 
+         (in-list-p n *closed-list*) 
+         (not (get-is-passable n)))
+        nil)
+       ((not 
+         (in-list-p n *open-list*))
+        (setf (get-parent n) *current*)
+        (count-all n target)
+        (push n *open-list*))
+       (t (when (> (get-g *current*) (get-g n)) 
+            (count-all n target)
+            (setf (get-parent n) *current*)))) nil)
+    (t
+     (setf 
+      (get-parent n) 
+      *current*)
+     t)))
+
+(defparameter *target-found* nil)
+
+(defmacro parallel-search (x)
+  `#'(lambda () 
+       (when (search-in-neighbours ,x target)
+         (setf *target-found* t))
+       (incf *barrier*)))
 
 (defun a-star-inner-loop (target)
-  (if (not (equal *open-list* nil))
-      (progn 
-        (setf *current* (get-current))
-        (push *current* *closed-list*)
-        (remove-from-open-list *current*)
+  (when *open-list*
+    (setf *current* (get-current))
+    (push *current* *closed-list*)
+    (remove-from-open-list *current*)
 
-        (if (not 
-             (search-in-neighbours 
-              (get-neighbours *current*) 
-              target))
-            (a-star-inner-loop target)
-            t)))
-  nil)
+    (setf *barrier* 0)
+    (setf *target-found* nil)
+
+    (let ((neighbours (get-neighbours *current*)))
+      (for x 1 8
+        (make-thread
+         (parallel-search (pop neighbours)))))
+
+    (while (< *barrier* 8) ())
+    (if (not *target-found*)
+        (a-star-inner-loop target)
+        t)))
 
 (defun draw-path (src trg)
   (if (or 
@@ -212,49 +240,20 @@ if there were an empty string between them."
         (draw-path src (get-parent trg)))))
 
 (defun a-star (src trg)
-  
   (count-all src trg)
   (push src *open-list*)
-  
   (a-star-inner-loop trg)
   (draw-path src trg)
   (setf (get-symbol src) "A")
-  (setf (get-symbol trg) "B"))
-;; (print "--------------------------------")
+  (setf (get-symbol trg) "B") 
+  *target-found*)
 
-;; (setq *graph* nil)
-(open-graph "generated.txt")
-(count-all
- (gethash  (create-key 0 0) *graph*)
- (gethash  (create-key 5 10) *graph*))
-(a-star (select-v 3 4) (select-v 20 20))
-;; (car (cdr *graph*))
-;; (print (reverse *graph*))
-;; (print (reverse *graph*))
+;; -------------------------------------
+
+(open-graph "512.txt")
+
+(time (a-star (select-v 1 20) (select-v 1020 1022)))
+
 (print-graph)
 
-
-;; (count-h (car  *graph*) (car (cdr *graph*)))
-
-;; (print (hash-keys *graph*))
-;; (print (gethash (create-key 2 2) *graph*))
-(defun print-neighbours (neighbours)
-  (print 
-   (list
-    (get-x (car neighbours))
-    (get-y (car neighbours))))
-  (if (not (eq neighbours nil)) (print-neighbours (cdr neighbours))))
-;; (print (get-neighbours (select-v 3 4)))
-
-;; (print (select-v 0 0))
-;; (print (car (cdr *graph*)))
-;; (count-g (car *graph*) )
-
-;; (setf (getf (car  *graph*) :x) 222)
-;; (car *graph*)
-
-
-;; (defmacro --foo* ((bar baz)) 
-;;   `(print ,baz))
-;; (--foo* (1 2))
 
