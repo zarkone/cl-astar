@@ -185,7 +185,6 @@ if there were an empty string between them."
     ((equal n nil) nil)
     ((not (equal n target))
      (cond 
-
        ((or 
          (in-list-p n *closed-list*) 
          (not (get-is-passable n)))
@@ -205,30 +204,43 @@ if there were an empty string between them."
      t)))
 
 (defparameter *target-found* nil)
+(defparameter *target* nil)
+(defparameter *begin-cell-search* (make-waitqueue))
+(defparameter *cells-searched* (make-waitqueue))
+(defparameter *lock* (make-mutex :name "lock"))
 
-(defmacro parallel-search (x)
-  `#'(lambda () 
-       (when (search-in-neighbours ,x target)
-         (setf *target-found* t))
-       (incf *barrier*)))
+(defparameter *neighbours* nil)
+(defparameter *io-main* *standard-output*)
 
-(defun a-star-inner-loop (target)
+(defun parallel-search nil
+  #'(lambda ()
+      (with-mutex (*lock*)
+        (loop (condition-wait *begin-cell-search* *lock*)
+           (when *target-found* (return-from-thread nil))
+           (for x 1 4
+             (when (search-in-neighbours (pop *neighbours*) *target*)
+               (setf *target-found* t)
+               (condition-notify *cells-searched*)
+               (return-from-thread nil))
+             (when (>= (incf *barrier* 8))
+               (condition-notify *cells-searched*)))))))
+
+(defun a-star-inner-loop nil
   (when *open-list*
     (setf *current* (get-current))
     (push *current* *closed-list*)
     (remove-from-open-list *current*)
-
     (setf *barrier* 0)
     (setf *target-found* nil)
 
-    (let ((neighbours (get-neighbours *current*)))
-      (for x 1 8
-        (make-thread
-         (parallel-search (pop neighbours)))))
+    (with-mutex (*lock*)
+      (setf *neighbours* (get-neighbours *current*))
+      (condition-broadcast *begin-cell-search*)
+      (when (condition-wait *cells-searched* *lock*) nil))
 
-    (while (< *barrier* 8) ())
+
     (if (not *target-found*)
-        (a-star-inner-loop target)
+        (a-star-inner-loop)
         t)))
 
 (defun draw-path (src trg)
@@ -242,19 +254,23 @@ if there were an empty string between them."
 
 (defun a-star (src trg)
   (count-all src trg)
+  (setf *target* trg)
   (push src *open-list*)
-  (a-star-inner-loop trg)
+  (for x 1 2
+    (make-thread
+     (parallel-search)))
+  (a-star-inner-loop)
   (draw-path src trg)
+  (print *target-found*)
+  (print (length *open-list*))
   (setf (get-symbol src) "A")
   (setf (get-symbol trg) "B") 
   *target-found*)
 
 ;; -------------------------------------
 
-(open-graph "512.txt")
+(open-graph "tests/128-2.txt")
 
-(time (a-star (select-v 1 20) (select-v 1020 1022)))
-
-(print-graph)
-
+(time
+ (a-star (select-v 63 4) (select-v 86 105)))
 

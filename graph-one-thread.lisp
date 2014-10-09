@@ -1,29 +1,7 @@
-(defpackage :graphs (:use "CL" "SB-THREAD" "SB-EXT"))
-(in-package :graphs)
-
 (defparameter *graph* (make-hash-table))
 
 (defparameter *x-len* 0)
 (defparameter *y-len* 0)
-(defparameter *barrier* 0)
-
-(defun print-neighbours (neighbours)
-  (print 
-   (list
-    (get-x (car neighbours))
-    (get-y (car neighbours))))
-  (if (not (eq neighbours nil)) (print-neighbours (cdr neighbours))))
-
-(defmacro for (var start stop &body body)
-  (let ((gstop (gensym)))
-    `(do ((,var ,start (1+ ,var))
-          (,gstop ,stop))
-         ((> ,var ,gstop))
-       ,@body)))
-(defmacro while (test &rest body)
-  `(do ()
-       ((not ,test))
-     ,@body))
 
 (defun hash-keys (hash-table)
   (loop for key being the hash-keys of hash-table collect key))
@@ -70,7 +48,6 @@ if there were an empty string between them."
     (setf *y-len* i))
   *graph*)
 
-      
 (defmacro get-param (v key) 
   `(getf ,v ,key))
 
@@ -97,7 +74,7 @@ if there were an empty string between them."
             (format t "~a " 
                     (get-symbol (select-v y x))))
        (format t "~%")))
-
+      
 
 (defun count-h (vertex target)
   (setf
@@ -180,55 +157,47 @@ if there were an empty string between them."
 
 (defparameter *current* nil)
 
-(defun search-in-neighbours (n target)
-  (cond 
-    ((equal n nil) nil)
-    ((not (equal n target))
-     (cond 
-       ((or 
-         (in-list-p n *closed-list*) 
-         (not (get-is-passable n)))
-        nil)
-       ((not 
-         (in-list-p n *open-list*))
-        (setf (get-parent n) *current*)
-        (count-all n target)
-        (push n *open-list*))
-       (t (when (> (get-g *current*) (get-g n)) 
-            (count-all n target)
-            (setf (get-parent n) *current*)))) nil)
-    (t
-     (setf 
-      (get-parent n) 
-      *current*)
-     t)))
-
-(defparameter *target-found* nil)
-
-(defmacro parallel-search (x)
-  `#'(lambda () 
-       (when (search-in-neighbours ,x target)
-         (setf *target-found* t))
-       (incf *barrier*)))
+(defun search-in-neighbours (neighbours target)
+  (let ((n (car neighbours)))
+    (cond 
+      ((equal n nil) nil)
+      ((not (equal n target))
+       (cond 
+         ((or 
+           (in-list-p n *closed-list*) 
+           (not (get-is-passable n)))
+          nil)
+         ((not 
+           (in-list-p n *open-list*))
+          (setf (get-parent n) *current*)
+          (count-all n target)
+          (push n *open-list*))
+         (t (if 
+             (> (get-g *current*) 
+                (get-g n)) 
+             (progn 
+               (count-all n target)
+               (setf (get-parent n) *current*)))))
+       (search-in-neighbours 
+        (cdr neighbours) target))
+      (t (setf 
+          (get-parent n) 
+          *current*)
+         t))))
 
 (defun a-star-inner-loop (target)
-  (when *open-list*
-    (setf *current* (get-current))
-    (push *current* *closed-list*)
-    (remove-from-open-list *current*)
+  (if (not (equal *open-list* nil))
+      (progn 
+        (setf *current* (get-current))
+        (push *current* *closed-list*)
+        (remove-from-open-list *current*)
 
-    (setf *barrier* 0)
-    (setf *target-found* nil)
-
-    (let ((neighbours (get-neighbours *current*)))
-      (for x 1 8
-        (make-thread
-         (parallel-search (pop neighbours)))))
-
-    (while (< *barrier* 8) ())
-    (if (not *target-found*)
-        (a-star-inner-loop target)
-        t)))
+        (if (not 
+             (search-in-neighbours 
+              (get-neighbours *current*) 
+              target))
+            (a-star-inner-loop target)
+            t)) nil))
 
 (defun draw-path (src trg)
   (if (or 
@@ -240,20 +209,19 @@ if there were an empty string between them."
         (draw-path src (get-parent trg)))))
 
 (defun a-star (src trg)
+  
   (count-all src trg)
   (push src *open-list*)
-  (a-star-inner-loop trg)
+  
+  (print (a-star-inner-loop trg))
+  (print (length *open-list*))
   (draw-path src trg)
   (setf (get-symbol src) "A")
-  (setf (get-symbol trg) "B") 
-  *target-found*)
+  (setf (get-symbol trg) "B"))
 
-;; -------------------------------------
+(open-graph "tests/128-2.txt")
 
-(open-graph "512.txt")
-
-(time (a-star (select-v 1 20) (select-v 1020 1022)))
-
-(print-graph)
+(time
+ (a-star (select-v 63 4) (select-v 86 105)))
 
 
