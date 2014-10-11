@@ -27,27 +27,6 @@ if there were an empty string between them."
 (defun create-key (y x)
   (intern (format nil "el~a-~a" y x)))
 
-(defmacro select-v (y x)
-  `(gethash (create-key ,y ,x) *graph*))
-
-
-(defun open-graph (filename)
-  (let ( (i 0) (j 0))
-    (with-open-file (in filename)
-      (do ((line (read-line in nil)
-                 (read-line in nil)))
-          ((null line))
-        (setq j -1)
-        (dolist (ch (split-by-one-space line))
-          (incf j)
-          (setf 
-           (select-v i j)
-           (char-to-vertex-hander ch i j)))
-        (incf i)))
-    (setf *x-len* (+ j 1))
-    (setf *y-len* i))
-  *graph*)
-
 (defmacro get-param (v key) 
   `(getf ,v ,key))
 
@@ -67,6 +46,27 @@ if there were an empty string between them."
   `(get-param ,v :g))
 (defmacro get-f (v) 
   `(get-param ,v :f))
+
+
+(defun select-v (y x)
+  (gethash (create-key y x) *graph*))
+
+(defun open-graph (filename)
+  (let ( (i 0) (j 0))
+    (with-open-file (in filename)
+      (do ((line (read-line in nil)
+                 (read-line in nil)))
+          ((null line))
+        (setq j -1)
+        (dolist (ch (split-by-one-space line))
+          (incf j)
+          (setf 
+           (gethash (create-key i j) *graph*)
+           (char-to-vertex-hander ch i j)))
+        (incf i)))
+    (setf *x-len* (+ j 1))
+    (setf *y-len* i))
+  *graph*)
 
 (defun print-graph nil 
   (dotimes (y *y-len*)
@@ -180,9 +180,7 @@ if there were an empty string between them."
                (setf (get-parent n) *current*)))))
        (search-in-neighbours 
         (cdr neighbours) target))
-      (t (setf 
-          (get-parent n) 
-          *current*)
+      (t (setf (get-parent n) *current*)
          t))))
 
 (defun a-star-inner-loop (target)
@@ -211,17 +209,20 @@ if there were an empty string between them."
 (defun a-star (src trg)
   
   (count-all src trg)
+
   (push src *open-list*)
-  
+
   (print (a-star-inner-loop trg))
   (print (length *open-list*))
   (draw-path src trg)
   (setf (get-symbol src) "A")
   (setf (get-symbol trg) "B"))
 
-(open-graph "tests/128-2.txt")
-
+(open-graph "tests/1300.txt")
+(print "haha.")
 (time
- (a-star (select-v 63 4) (select-v 86 105)))
+ (a-star (select-v 63 4) (select-v 1006 1024)))
+
+(list (get-y *current*)(get-x *current*))
 
 

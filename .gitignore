@@ -3,3 +3,4 @@
 /graph.lib
 /graph.sse2f
 /tester.fasl
+/graph-one-thread.fasl

@@ -1,18 +1,11 @@
 (defpackage :graphs (:use "CL" "SB-THREAD" "SB-EXT"))
 (in-package :graphs)
 
-(defparameter *graph* (make-hash-table))
+(defparameter *graph* nil)
 
 (defparameter *x-len* 0)
 (defparameter *y-len* 0)
 (defparameter *barrier* 0)
-
-(defun print-neighbours (neighbours)
-  (print 
-   (list
-    (get-x (car neighbours))
-    (get-y (car neighbours))))
-  (if (not (eq neighbours nil)) (print-neighbours (cdr neighbours))))
 
 (defmacro for (var start stop &body body)
   (let ((gstop (gensym)))
@@ -24,9 +17,6 @@
   `(do ()
        ((not ,test))
      ,@body))
-
-(defun hash-keys (hash-table)
-  (loop for key being the hash-keys of hash-table collect key))
 
 (defun split-by-one-space (string)
   "Returns a list of substrings of string
@@ -46,31 +36,6 @@ if there were an empty string between them."
 (defun is-passable-p (ch) 
   (equal ch "*"))
 
-(defun create-key (y x)
-  (intern (format nil "el~a-~a" y x)))
-
-(defmacro select-v (y x)
-  `(gethash (create-key ,y ,x) *graph*))
-
-
-(defun open-graph (filename)
-  (let ( (i 0) (j 0))
-    (with-open-file (in filename)
-      (do ((line (read-line in nil)
-                 (read-line in nil)))
-          ((null line))
-        (setq j -1)
-        (dolist (ch (split-by-one-space line))
-          (incf j)
-          (setf 
-           (select-v i j)
-           (char-to-vertex-hander ch i j)))
-        (incf i)))
-    (setf *x-len* (+ j 1))
-    (setf *y-len* i))
-  *graph*)
-
-      
 (defmacro get-param (v key) 
   `(getf ,v ,key))
 
@@ -90,6 +55,35 @@ if there were an empty string between them."
   `(get-param ,v :g))
 (defmacro get-f (v) 
   `(get-param ,v :f))
+
+(defun open-graph (filename)
+  (let ( (i 0) (j 0))
+    (with-open-file (in filename)
+      (do ((line (read-line in nil)
+                 (read-line in nil)))
+          ((null line))
+        (setq j -1)
+        (dolist (ch (split-by-one-space line))
+          (incf j)
+          (push
+           (char-to-vertex-hander ch i j)
+           *graph*))
+        (incf i)))
+    (setf *x-len* (+ j 1))
+    (setf *y-len* i))
+  *graph*)
+
+;; (defun select-v (y x &optional (graph *graph*))
+;;   (cond
+;;     ((not graph) nil)
+;;     ((and
+;;       (= x (get-x (car graph)))
+;;       (= y (get-y (car graph)))) (car graph))
+;;     (t (select-v y x (cdr graph)))))
+(defun select-v (y x)
+  (if (or (> y *y-len*) (> x *x-len*)) nil
+      (let ((i (* *x-len* (- *y-len* y 1))) (j (- (- *x-len* 1)  x)))
+        (nth (+ i j) *graph*))))
 
 (defun print-graph nil 
   (dotimes (y *y-len*)
@@ -197,10 +191,7 @@ if there were an empty string between them."
        (t (when (> (get-g *current*) (get-g n)) 
             (count-all n target)
             (setf (get-parent n) *current*)))) nil)
-    (t
-     (setf 
-      (get-parent n) 
-      *current*)
+    (t (setf (get-parent n) *current*)
      t)))
 
 (defparameter *target-found* nil)
@@ -269,8 +260,10 @@ if there were an empty string between them."
 
 ;; -------------------------------------
 
-(open-graph "tests/128-2.txt")
-
+(open-graph "tests/768.txt")
+;; (print "haha.")
 (time
- (a-star (select-v 63 4) (select-v 86 105)))
+ (a-star (select-v 63 4) (select-v 686 525)))
 
+
+(list (get-y *current*)(get-x *current*))
