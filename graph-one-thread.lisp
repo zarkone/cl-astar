@@ -1,3 +1,5 @@
+(defpackage :graphs (:use "CL" "SB-THREAD" "SB-EXT"))
+(in-package :graphs)
 (defparameter *graph* (make-hash-table))
 
 (defparameter *x-len* 0)
@@ -11,10 +13,10 @@
 divided by ONE space each.
 Note: Two consecutive spaces will be seen as
 if there were an empty string between them."
-    (loop for i = 0 then (1+ j)
-          as j = (position #\Space string :start i)
-          collect (subseq string i j)
-          while j))
+  (loop for i = 0 then (1+ j)
+     as j = (position #\Space string :start i)
+     collect (subseq string i j)
+     while j))
 
 (defun char-to-vertex-hander (ch y x)
   "Char to Vertex map function."
@@ -198,23 +200,38 @@ if there were an empty string between them."
             (a-star-inner-loop target)
             t)) nil))
 
-(defun draw-path (src trg)
-  (if (or 
-       (equal trg nil)
-       (equal trg src))
-      nil
-      (progn
-        (setf (get-symbol trg) " ")
-        (draw-path src (get-parent trg)))))
+(defun draw-path (trg)
+  (let ((path nil))
+    (do 
+     ((item trg (get-parent item)))
+     ((equal item nil))
+      (push item path))
+    path))
 
 (defun a-star (src trg)
   (count-all src trg)
   (push src *open-list*)
-  (a-star-inner-loop trg)
-  (draw-path src trg)
-  (setf (get-symbol src) "A")
-  (setf (get-symbol trg) "B"))
+  (a-star-inner-loop trg))
+  ;; (dolist (item (draw-path trg))
+    ;; (format t "~a:~a~%" (get-x item) (get-y item)))
+  ;; (setf (get-symbol src) "A")
+  ;; (setf (get-symbol trg) "B"))
 
+(defmacro for (var start stop &body body)
+  (let ((gstop (gensym)))
+    `(do ((,var ,start (1+ ,var))
+          (,gstop ,stop))
+         ((> ,var ,gstop))
+       ,@body)))
 
+(defun clean-graph (size)
+ (for y 1 size
+   (for x 1 size
+     (let ((v (select-v y x)))
+       (setf (gethash (create-key y x) *graph*) 
+             (char-to-vertex-hander 
+              (get-symbol v) 
+              (get-y v) 
+              (get-x v)))))))
 
 
