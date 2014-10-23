@@ -172,9 +172,20 @@ if there were an empty string between them."
    *open-list* 
    (remove-if #'(lambda (a) (equal x a)) *open-list*)))
 
+(defun draw-path (src trg)
+  (if (or 
+       (equal trg nil)
+       (equal trg src))
+      nil
+      (progn
+        (setf (get-symbol trg) " ")
+        (draw-path src (get-parent trg)))))
+
 (defparameter *current* nil)
+(defparameter *io-main* *standard-output*)
 
 (defun search-in-neighbours (n target)
+  ;; (format *io-main* "~a : ~a~%" (get-x n) (get-y n))
   (cond 
     ((equal n nil) nil)
     ((not (equal n target))
@@ -191,30 +202,39 @@ if there were an empty string between them."
        (t (when (> (get-g *current*) (get-g n)) 
             (count-all n target)
             (setf (get-parent n) *current*)))) nil)
-    (t (setf (get-parent n) *current*)
-     t)))
+    (t (setf (get-parent n) *current*) t)))
+
 
 (defparameter *target-found* nil)
 (defparameter *target* nil)
 (defparameter *begin-cell-search* (make-waitqueue))
 (defparameter *cells-searched* (make-waitqueue))
 (defparameter *lock* (make-mutex :name "lock"))
-
+(defparameter *cell-search* (make-semaphore :name "cell search" :count 0))
 (defparameter *neighbours* nil)
-(defparameter *io-main* *standard-output*)
+(defparameter *unlocked* nil)
+
+(defun unlock nil 
+  (condition-notify *cells-searched*)
+  (setq *unlocked* t))
 
 (defun parallel-search nil
   #'(lambda ()
-      (with-mutex (*lock*)
-        (loop (condition-wait *begin-cell-search* *lock*)
-           (when *target-found* (return-from-thread nil))
-           (for x 1 4
-             (when (search-in-neighbours (pop *neighbours*) *target*)
-               (setf *target-found* t)
-               (condition-notify *cells-searched*)
-               (return-from-thread nil))
-             (when (>= (incf *barrier* 8))
-               (condition-notify *cells-searched*)))))))
+      ;; (format *io-main* "p-search.~%")
+      (loop (wait-on-semaphore *cell-search*)
+         ;; (format *io-main* "semaphore..~%")
+         (when *target-found* 
+           (unlock)
+           (return-from-thread nil))
+         (for x 1 4
+           (when (search-in-neighbours (pop *neighbours*) *target*)
+             (setf *target-found* t)
+             (unlock)
+             (return-from-thread nil)))
+         (incf *barrier*)
+         (when (>= *barrier* 2)
+           ;; (format *io-main* "barrier..~%")
+           (unlock)))))
 
 (defun a-star-inner-loop nil
   (when *open-list*
@@ -223,34 +243,25 @@ if there were an empty string between them."
     (remove-from-open-list *current*)
     (setf *barrier* 0)
     (setf *target-found* nil)
+    ;; (print "inner-loop-begin")
+    (setf *neighbours* (get-neighbours *current*))
+    ;; (print "signal..")
 
     (with-mutex (*lock*)
-      (setf *neighbours* (get-neighbours *current*))
-      (condition-broadcast *begin-cell-search*)
-      (when (condition-wait *cells-searched* *lock*) nil))
+      (signal-semaphore *cell-search* 2)
+      (when (or *unlocked* (condition-wait *cells-searched* *lock* :timeout 0.2)) nil)
+      (setq *unlocked* nil))))
 
-
-    (if (not *target-found*)
-        (a-star-inner-loop)
-        t)))
-
-(defun draw-path (src trg)
-  (if (or 
-       (equal trg nil)
-       (equal trg src))
-      nil
-      (progn
-        (setf (get-symbol trg) " ")
-        (draw-path src (get-parent trg)))))
 
 (defun a-star (src trg)
   (count-all src trg)
   (setf *target* trg)
   (push src *open-list*)
-  (for x 1 2
+   (for x 1 2
     (make-thread
      (parallel-search)))
-  (a-star-inner-loop)
+  (while (not *target-found*)
+    (a-star-inner-loop))
   (draw-path src trg)
   (print *target-found*)
   (print (length *open-list*))
@@ -260,10 +271,10 @@ if there were an empty string between them."
 
 ;; -------------------------------------
 
-(open-graph "tests/768.txt")
-;; (print "haha.")
+(open-graph "tests/256.txt")
+(print "haha.")
 (time
- (a-star (select-v 63 4) (select-v 686 525)))
+ (a-star (select-v 3 4) (select-v 188 125)))
 
 
 (list (get-y *current*)(get-x *current*))

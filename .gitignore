@@ -4,3 +4,4 @@
 /graph.sse2f
 /tester.fasl
 /graph-one-thread.fasl
+/graph-all.fasl

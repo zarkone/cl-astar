@@ -89,9 +89,9 @@ if there were an empty string between them."
   (not (or
         (eq (get-x vertex) (getf (get-parent vertex ) :x))
         (eq (get-y vertex) (getf (get-parent vertex ) :y)))))
-
-(defun count-g (vertex)
-  (if (get-parent vertex) 
+                                      
+(defun count-g (vertex)               
+  (if (get-parent vertex)                   
       (setf (get-g vertex) 
             (+ 
              (getf (get-parent vertex) :g)
@@ -159,6 +159,7 @@ if there were an empty string between them."
 
 (defun search-in-neighbours (neighbours target)
   (let ((n (car neighbours)))
+    ;; (format t "~a : ~a~%" (get-x n) (get-y n))
     (cond 
       ((equal n nil) nil)
       ((not (equal n target))
@@ -207,22 +208,13 @@ if there were an empty string between them."
         (draw-path src (get-parent trg)))))
 
 (defun a-star (src trg)
-  
   (count-all src trg)
-
   (push src *open-list*)
-
-  (print (a-star-inner-loop trg))
-  (print (length *open-list*))
+  (a-star-inner-loop trg)
   (draw-path src trg)
   (setf (get-symbol src) "A")
   (setf (get-symbol trg) "B"))
 
-(open-graph "tests/1300.txt")
-(print "haha.")
-(time
- (a-star (select-v 63 4) (select-v 1006 1024)))
 
-(list (get-y *current*)(get-x *current*))
 
 
