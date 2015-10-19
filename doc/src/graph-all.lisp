@@ -1,0 +1,1 @@
+/home/zarkone/docs/MAG/psmp/l1-lisp/graph-all.lisp

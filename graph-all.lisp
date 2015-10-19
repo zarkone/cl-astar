@@ -1,5 +1,8 @@
-(defpackage :graphs (:use "CL" "SB-THREAD" "SB-EXT"))
-(in-package :graphs)
+(defpackage :graph-all 
+  (:use "CL")
+  (:export :process-graph))
+
+(in-package :graph-all)
 
 (defparameter *graph* nil)
 
@@ -226,54 +229,16 @@ if there were an empty string between them."
          ((> ,var ,gstop))
        ,@body)))
 
-
-(defun clean-graph (size)
- (for y 1 size
-   (for x 1 size
-     (let ((v (select-v y x)))
-       (setf (select-v y x) 
-             (char-to-vertex-hander 
-              (get-symbol v) 
-              (get-y v) 
-              (get-x v)))))))
-
-
-
-(print "haha.")
-
-(open-graph "tests/16.txt")
-(defparameter *barrier* 0)
-
-(defparameter *parallel-end* (make-waitqueue))
-(defparameter *lock* (make-mutex :name "lock"))
 (defparameter *io-main* *standard-output*)
 
-;; (print (a-star (select-v 1 1) (select-v 2 3)))
-;; (print "end.")
-(defun process-graph (from to)
+(defun process-graph (from to end)
   (let ((*graph* nil))
-    (for trg-x 1 14
+    (for trg-x 1 end
       (format *io-main* "trg:~a...~% " trg-x)
       (for src-y from to
         (for src-x 1 to
-          (open-graph "tests/16.txt")
+          (open-graph (format nil "tests/~a.txt" (+ end 2)))
           (a-star 
            (select-v src-y src-x)
-           (select-v 14 trg-x)))))))
+           (select-v end trg-x)))))))
 
-(defun create-process (from to)
-  #'(lambda nil
-      (process-graph from to)
-      (format *io-main* "done.~a~%" to)
-      (incf *barrier*)
-      (when (>= *barrier* 2) 
-        (condition-notify *parallel-end*))))
-
-;; (print (time(process-graph 1 14)))
-
-(with-mutex (*lock*)
-  (make-thread (create-process 1 8))
-  (make-thread (create-process 9 14))
-  (print 
-   (time 
-    (when (condition-wait *parallel-end* *lock*)))))
